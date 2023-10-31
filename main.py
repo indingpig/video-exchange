@@ -1,20 +1,2 @@
-import os
-
-
-# print(os.getcwd())
-# # print(os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
-
-# path = os.path.abspath(os.path.dirname((os.path.dirname(os.getcwd()))))
-# print(path)
-
-# files = os.listdir(path + '/tsTest/beginner')
-# print(files)
-
-# for file in files:
-#   if not os.path.isdir(file):
-#     f = open(path + '/tsTest/beginner/' +  file)
-#     lines = f.read()
-#     print(lines)
-#     f.close()
-
-os.system('whisper -h')
+# 两个视频合成一个，一左一右
+# ffmpeg -i screen-1.mov -i screen-2.mov -filter_complex "[0:v]pad=iw*2:ih*1[myname];[myname][1:v]overlay=w" out1.mov
