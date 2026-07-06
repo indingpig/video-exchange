@@ -1,0 +1,101 @@
+{
+    "status": 1,
+    "msg": "成功",
+    "data": {
+        "result": "success",
+        "xmlDateMonth": "2023年12月",
+        "dataMj": [
+            {
+                "name": "南山",
+                "value": 67658.92
+            },
+            {
+                "name": "福田",
+                "value": 74282.19
+            },
+            {
+                "name": "龙岗",
+                "value": 83823.33
+            },
+            {
+                "name": "宝安",
+                "value": 48087
+            },
+            {
+                "name": "罗湖",
+                "value": 46484.31
+            },
+            {
+                "name": "盐田",
+                "value": 11747.38
+            },
+            {
+                "name": "龙华",
+                "value": 33017.89
+            },
+            {
+                "name": "坪山",
+                "value": 10481.64
+            },
+            {
+                "name": "光明",
+                "value": 5142.09
+            },
+            {
+                "name": "大鹏",
+                "value": 1547.55
+            },
+            {
+                "name": "深汕",
+                "value": 0
+            }
+        ],
+        "dataTs": [
+            {
+                "name": "南山",
+                "value": 684
+            },
+            {
+                "name": "福田",
+                "value": 814
+            },
+            {
+                "name": "龙岗",
+                "value": 953
+            },
+            {
+                "name": "宝安",
+                "value": 505
+            },
+            {
+                "name": "罗湖",
+                "value": 629
+            },
+            {
+                "name": "盐田",
+                "value": 111
+            },
+            {
+                "name": "龙华",
+                "value": 360
+            },
+            {
+                "name": "坪山",
+                "value": 110
+            },
+            {
+                "name": "光明",
+                "value": 54
+            },
+            {
+                "name": "大鹏",
+                "value": 11
+            },
+            {
+                "name": "深汕",
+                "value": 0
+            }
+        ],
+        "xmlDateDay": ""
+    }
+}

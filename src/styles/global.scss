@@ -1,0 +1,78 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  background-color: #f5f7fa;
+  color: #303133;
+}
+
+// Element Plus 暗色变量覆盖（可选）
+:root {
+  --el-color-primary: #409eff;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c0c4cc;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+// 通用工具类
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-muted {
+  color: #909399;
+}
+
+.mt-16 { margin-top: 16px; }
+.mb-16 { margin-bottom: 16px; }
+
+// 统计数值样式
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.stat-up {
+  color: #67c23a;
+}
+
+.stat-down {
+  color: #f56c6c;
+}

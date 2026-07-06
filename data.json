@@ -1,0 +1,101 @@
+{
+  "status": 1,
+  "msg": "成功",
+  "data": {
+      "result": "success",
+      "xmlDateMonth": "2023年09月",
+      "dataMj": [
+          {
+              "name": "南山",
+              "value": 47540.32
+          },
+          {
+              "name": "福田",
+              "value": 57999.23
+          },
+          {
+              "name": "龙岗",
+              "value": 62483.91
+          },
+          {
+              "name": "宝安",
+              "value": 32793.61
+          },
+          {
+              "name": "罗湖",
+              "value": 38882.87
+          },
+          {
+              "name": "盐田",
+              "value": 4855.56
+          },
+          {
+              "name": "龙华",
+              "value": 21385.46
+          },
+          {
+              "name": "坪山",
+              "value": 4399.12
+          },
+          {
+              "name": "光明",
+              "value": 2997.61
+          },
+          {
+              "name": "大鹏",
+              "value": 1024.93
+          },
+          {
+              "name": "深汕",
+              "value": 0
+          }
+      ],
+      "dataTs": [
+          {
+              "name": "南山",
+              "value": 420
+          },
+          {
+              "name": "福田",
+              "value": 614
+          },
+          {
+              "name": "龙岗",
+              "value": 697
+          },
+          {
+              "name": "宝安",
+              "value": 357
+          },
+          {
+              "name": "罗湖",
+              "value": 496
+          },
+          {
+              "name": "盐田",
+              "value": 44
+          },
+          {
+              "name": "龙华",
+              "value": 235
+          },
+          {
+              "name": "坪山",
+              "value": 55
+          },
+          {
+              "name": "光明",
+              "value": 32
+          },
+          {
+              "name": "大鹏",
+              "value": 9
+          },
+          {
+              "name": "深汕",
+              "value": 0
+          }
+      ],
+      "xmlDateDay": ""
+  }
+}

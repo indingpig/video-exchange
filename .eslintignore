@@ -1,0 +1,7 @@
+dist
+dist-electron
+node_modules
+houseData
+python-learn
+*.json
+*.md
