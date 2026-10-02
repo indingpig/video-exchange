@@ -8,18 +8,18 @@
 
 | 层 | 技术 |
 |----|------|
-| 桌面框架 | Electron 33 |
+| 桌面框架 | Electron 44 |
 | 前端框架 | Vue 3.5 (Composition API + `<script setup>`) |
-| UI 组件库 | Element Plus 2.8 |
-| 图表 | ECharts 5 |
-| 状态管理 | Pinia 2 |
-| 路由 | Vue Router 4 (Hash 模式) |
+| UI 组件库 | Element Plus 2.14 |
+| 图表 | ECharts 6 |
+| 状态管理 | Pinia 4 |
+| 路由 | Vue Router 5 (Hash 模式) |
 | 数据库 | sql.js (SQLite WebAssembly) |
 | HTTP 请求 | axios |
-| 构建工具 | Vite 5 + vite-plugin-electron |
-| 类型检查 | TypeScript 5.6 + vue-tsc |
-| 代码规范 | ESLint 8 + @typescript-eslint |
-| 包管理 | npm |
+| 构建工具 | Vite 8 + vite-plugin-electron 1.x |
+| 类型检查 | TypeScript 5.9 + vue-tsc 3 |
+| 代码规范 | ESLint 9 (flat config) + @typescript-eslint |
+| 包管理 | pnpm 12 |
 
 ## 项目结构
 
@@ -92,12 +92,12 @@ video-exchange/
 ## 常用命令
 
 ```bash
-npm run dev            # 启动开发模式（Vite + Electron）
-npm run dev:debug      # 启动调试模式（Electron 附加 --inspect=5858）
-npm run build          # 类型检查 + Vite 构建
-npm run lint           # ESLint 自动修复
-npm run lint:check     # ESLint 仅检查
-npm run electron:build # 构建 + 打包 Electron 安装包
+pnpm dev            # 启动开发模式（Vite + Electron）
+pnpm dev:debug      # 启动调试模式（Electron 附加 --inspect=5858）
+pnpm build          # 类型检查 + Vite 构建
+pnpm lint           # ESLint 自动修复
+pnpm lint:check     # ESLint 仅检查
+pnpm electron:build # 构建 + 打包 Electron 安装包
 ```
 
 ## VS Code 调试
@@ -126,8 +126,11 @@ npm run electron:build # 构建 + 打包 Electron 安装包
 
 ## 注意事项
 
-- Node.js v24.16.0 与 Electron 33 兼容，但 `electron-rebuild` 可能失败
+- 包管理使用 pnpm 12，构建脚本白名单在 `pnpm-workspace.yaml` 的 `allowBuilds`（electron 等允许，@parcel/watcher、electron-winstaller 已显式拒绝）
+- Electron 二进制下载卡住时（国内网络），设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` 后在 `node_modules/electron` 下执行 `node install.js`；全量重装后如发现 dist 目录为空，同样执行该命令补齐
 - sql.js 和 axios 在 vite.config.ts 中标记为 external（不在主进程打包中编译）
+- fdc.zjj.sz.gov.cn 的住建局接口已被瑞数 WAF 保护，主进程 axios 无法直连（返回 412），接口拉取功能目前依赖浏览器会话手动扒数据，替代方案见 houseData 目录与 opendata.sz.gov.cn
 - 接口 POST 方法，不是 GET
 - 接口拉取前会检查数据是否已存在，存在则弹窗确认覆盖
+- houseData/*.json 与数据库按文件 mtime 自动增量同步（sync_meta 表），无需手动点导入
 - 函数需要使用卫语句去返回，尽量减少使用if else增加代码分支
