@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('api', {
   // JSON 导入到数据库
   importJsonToDb: () => ipcRenderer.invoke('db:importJson'),
 
+  // houseData JSON 增量同步到数据库
+  syncJson: () => ipcRenderer.invoke('db:syncJson'),
+
   // 数据库导出到 JSON
   exportDbToJson: () => ipcRenderer.invoke('db:exportJson'),
 

@@ -1,7 +1,16 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron'
 import path from 'path'
+import type { Database as SqlJsDatabase } from 'sql.js'
 import { initDatabase, getDatabase, saveDatabase } from './database'
 import { fetchMonthData } from './api'
+
+// houseData/*.json 的接口返回结构
+interface MonthJsonData {
+  data?: {
+    dataTs?: Array<{ name: string; value: number }>
+    dataMj?: Array<{ name: string; value: number }>
+  }
+}
 
 let mainWindow: BrowserWindow | null = null
 
@@ -76,6 +85,11 @@ function registerIpcHandlers() {
     return await importJsonToDatabase()
   })
 
+  // houseData JSON 增量同步到数据库
+  ipcMain.handle('db:syncJson', async () => {
+    return await syncJsonToDatabase()
+  })
+
   // 数据库导出到 JSON
   ipcMain.handle('db:exportJson', async () => {
     return await exportDatabaseToJson()
@@ -129,7 +143,89 @@ function registerIpcHandlers() {
   })
 }
 
-// 导入 JSON 到数据库
+// 写入单个月份数据（先删后插），返回写入行数；无 dataTs 的文件视为无效，原样跳过
+function writeMonthRows(db: SqlJsDatabase, yearMonth: string, json: MonthJsonData): number {
+  const rows = json.data?.dataTs
+  if (!rows) return 0
+
+  db.run('DELETE FROM house_data WHERE year_month = ?', [yearMonth])
+  for (const item of rows) {
+    const areaItem = json.data?.dataMj?.find(a => a.name === item.name)
+    db.run(
+      'INSERT INTO house_data (year_month, district, area, count) VALUES (?, ?, ?, ?)',
+      [yearMonth, item.name, areaItem ? areaItem.value : 0, item.value]
+    )
+  }
+  return rows.length
+}
+
+// 记录月份文件已同步的修改时间
+function markMonthSynced(db: SqlJsDatabase, yearMonth: string, mtime: number): void {
+  db.run('INSERT OR REPLACE INTO sync_meta (year_month, mtime) VALUES (?, ?)', [yearMonth, mtime])
+}
+
+// 查询月份文件已同步的修改时间，未同步过返回 null
+function getSyncedMtime(db: SqlJsDatabase, yearMonth: string): number | null {
+  const stmt = db.prepare('SELECT mtime FROM sync_meta WHERE year_month = ?')
+  stmt.bind([yearMonth])
+  const mtime = stmt.step() ? (stmt.getAsObject().mtime as number) : null
+  stmt.free()
+  return mtime
+}
+
+// 按 mtime 增量同步 houseData/*.json 到数据库：只导入新增或文件有变更的月份
+async function syncJsonToDatabase(): Promise<{ synced: number; rows: number }> {
+  const db = getDatabase()
+  const fs = await import('fs')
+  const houseDataDir = path.join(__dirname, '../houseData')
+
+  if (!fs.existsSync(houseDataDir)) {
+    return { synced: 0, rows: 0 }
+  }
+
+  const pending: Array<{ yearMonth: string; json: MonthJsonData; mtime: number }> = []
+  for (const file of fs.readdirSync(houseDataDir).filter(f => f.endsWith('.json'))) {
+    const filePath = path.join(houseDataDir, file)
+    const yearMonth = file.replace('.json', '')
+    const mtime = fs.statSync(filePath).mtimeMs
+
+    if (getSyncedMtime(db, yearMonth) === mtime) continue
+
+    try {
+      const json = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as MonthJsonData
+      if (!json.data?.dataTs) {
+        console.warn(`[Sync] 跳过无效文件: ${file}`)
+        continue
+      }
+      pending.push({ yearMonth, json, mtime })
+    } catch (error) {
+      console.warn(`[Sync] 解析失败跳过: ${file}`, error)
+    }
+  }
+
+  if (!pending.length) {
+    return { synced: 0, rows: 0 }
+  }
+
+  let rows = 0
+  db.run('BEGIN TRANSACTION')
+  try {
+    for (const item of pending) {
+      rows += writeMonthRows(db, item.yearMonth, item.json)
+      markMonthSynced(db, item.yearMonth, item.mtime)
+    }
+    db.run('COMMIT')
+    saveDatabase()
+    console.log(`[Sync] JSON 增量同步完成: ${pending.length} 个月份, ${rows} 行`)
+    return { synced: pending.length, rows }
+  } catch (error) {
+    db.run('ROLLBACK')
+    console.error('syncJsonToDatabase error:', error)
+    return { synced: 0, rows: 0 }
+  }
+}
+
+// 全量导入 JSON 到数据库
 async function importJsonToDatabase() {
   const db = getDatabase()
   const fs = await import('fs')
@@ -145,28 +241,15 @@ async function importJsonToDatabase() {
   db.run('BEGIN TRANSACTION')
   try {
     for (const file of files) {
+      const filePath = path.join(houseDataDir, file)
       const yearMonth = file.replace('.json', '')
-      const content = fs.readFileSync(path.join(houseDataDir, file), 'utf-8')
-      const json = JSON.parse(content)
+      const json = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as MonthJsonData
 
-      if (json.data?.dataTs) {
-        // 删除该月份旧数据
-        db.run('DELETE FROM house_data WHERE year_month = ?', [yearMonth])
-
-        for (const item of json.data.dataTs) {
-          // 查找对应的面积数据
-          const areaItem = json.data.dataMj?.find((a: { name: string }) => a.name === item.name)
-          const area = areaItem ? areaItem.value : 0
-
-          db.run(
-            'INSERT INTO house_data (year_month, district, area, count) VALUES (?, ?, ?, ?)',
-            [yearMonth, item.name, area, item.value]
-          )
-          count++
-        }
-      }
+      count += writeMonthRows(db, yearMonth, json)
+      markMonthSynced(db, yearMonth, fs.statSync(filePath).mtimeMs)
     }
     db.run('COMMIT')
+    saveDatabase()
     return { success: true, count, message: `成功导入 ${files.length} 个月份，共 ${count} 条数据` }
   } catch (error) {
     db.run('ROLLBACK')
@@ -273,9 +356,6 @@ async function saveMonthData(data: {
     }
     db.run('COMMIT')
 
-    // 保存数据库到文件
-    saveDatabase()
-
     // 写入 JSON 文件
     if (!fs.existsSync(houseDataDir)) {
       fs.mkdirSync(houseDataDir, { recursive: true })
@@ -295,6 +375,10 @@ async function saveMonthData(data: {
 
     const filePath = path.join(houseDataDir, `${data.yearMonth}.json`)
     fs.writeFileSync(filePath, JSON.stringify(json, null, 2), 'utf-8')
+
+    // 记录同步标记并落盘，避免下次同步重复导入
+    markMonthSynced(db, data.yearMonth, fs.statSync(filePath).mtimeMs)
+    saveDatabase()
 
     return { success: true, count, message: `成功保存 ${data.xmlDateMonth} 数据，共 ${count} 条` }
   } catch (error) {
@@ -341,6 +425,8 @@ app.whenReady().then(async () => {
   setupCSP()
 
   await initDatabase()
+  // 启动时同步 houseData 目录，保证月份下拉框始终包含最新 JSON 文件
+  await syncJsonToDatabase()
   registerIpcHandlers()
   createWindow()
 

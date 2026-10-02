@@ -71,6 +71,14 @@ export async function initDatabase(): Promise<void> {
     )
   `)
 
+  // 记录各月份 JSON 文件导入时的修改时间，用于启动时增量同步
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sync_meta (
+      year_month TEXT PRIMARY KEY,
+      mtime REAL NOT NULL
+    )
+  `)
+
   // 插入默认管理员账号（如果不存在）
   const result = db.exec("SELECT id FROM users WHERE username = 'admin'")
   if (!result.length || !result[0].values.length) {

@@ -14,6 +14,8 @@ interface Window {
     // JSON 导入导出
     importJsonToDb: () => Promise<{ success: boolean; count: number; message: string }>
     exportDbToJson: () => Promise<{ success: boolean; message: string }>
+    // houseData JSON 增量同步到数据库
+    syncJson: () => Promise<{ synced: number; rows: number }>
     // 认证
     login: (username: string, password: string) => Promise<{ success: boolean; token?: string; role?: string; message: string }>
     // 接口获取数据
