@@ -26,6 +26,12 @@ export interface DistrictData {
   avgArea: number  // 套均面积
 }
 
+export interface PeriodSummary {
+  period: string     // "2023Q3" / "2024"
+  totalCount: number
+  totalArea: number
+}
+
 export const useHouseStore = defineStore('house', () => {
   const allData = ref<HouseRecord[]>([])
   const loading = ref(false)
@@ -73,7 +79,6 @@ export const useHouseStore = defineStore('house', () => {
       const totalArea = data.reduce((sum, d) => sum + d.area, 0)
 
       // 环比
-      const prevMonth = months[i - 1]
       const prev = result[i - 1]
       const momChange = prev ? totalCount - prev.totalCount : 0
       const momRate = prev && prev.totalCount > 0
@@ -101,24 +106,49 @@ export const useHouseStore = defineStore('house', () => {
     return result
   })
 
-  // 上个月数据用于对比
-  const prevMonthTotal = computed(() => {
+  // 按分组函数汇总套数/面积（季度图、年度图共用），分组键按字典序即时间序
+  function aggregatePeriods(keyFn: (yearMonth: string) => string): PeriodSummary[] {
+    const map = new Map<string, { count: number; area: number }>()
+    for (const d of allData.value) {
+      const key = keyFn(d.year_month)
+      const acc = map.get(key) ?? { count: 0, area: 0 }
+      acc.count += d.count
+      acc.area += d.area
+      map.set(key, acc)
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([period, acc]) => ({
+        period,
+        totalCount: acc.count,
+        totalArea: Math.round(acc.area * 100) / 100
+      }))
+  }
+
+  // 季度汇总，"202609" → "2026Q3"
+  const quarterlyTrend = computed<PeriodSummary[]>(() =>
+    aggregatePeriods(ym => `${ym.slice(0, 4)}Q${Math.floor((Number(ym.slice(4)) - 1) / 3) + 1}`)
+  )
+
+  // 年度汇总
+  const yearlyTrend = computed<PeriodSummary[]>(() =>
+    aggregatePeriods(ym => ym.slice(0, 4))
+  )
+
+  // 选中月份的汇总及上一月汇总（环比基准），跟随下拉选择变化
+  const selectedSummary = computed(() => {
     const trend = monthlyTrend.value
-    if (trend.length < 2) return { count: 0, area: 0 }
-    const prev = trend[trend.length - 2]
-    return { count: prev.totalCount, area: prev.totalArea }
+    const idx = trend.findIndex(t => t.yearMonth === selectedMonth.value)
+    const current = idx >= 0 ? trend[idx] : (trend.length > 0 ? trend[trend.length - 1] : null)
+    const prev = current && idx > 0 ? trend[idx - 1] : null
+    return { current, prev }
   })
 
-  // 当前月份的汇总
-  const currentSummary = computed(() => {
-    const trend = monthlyTrend.value
-    return trend.length > 0 ? trend[trend.length - 1] : null
-  })
-
-  // 从数据库加载所有数据
+  // 从数据库加载所有数据（先增量同步 houseData 目录，自动纳入新增/更新的 JSON 文件）
   async function loadFromDb() {
     loading.value = true
     try {
+      await window.api.syncJson()
       const data = await window.api.dbQuery('SELECT * FROM house_data ORDER BY year_month, district') as HouseRecord[]
       allData.value = data
       if (data.length > 0) {
@@ -234,8 +264,9 @@ export const useHouseStore = defineStore('house', () => {
     districtSummary,
     monthTotal,
     monthlyTrend,
-    prevMonthTotal,
-    currentSummary,
+    quarterlyTrend,
+    yearlyTrend,
+    selectedSummary,
     loadFromDb,
     importJson,
     exportJson,

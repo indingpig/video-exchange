@@ -46,9 +46,10 @@
           <div class="stat-value">{{ houseStore.monthTotal.count.toLocaleString() }} <span class="stat-unit">套</span></div>
           <div class="stat-sub">
             环比
-            <span :class="currentMomRate >= 0 ? 'stat-up' : 'stat-down'">
+            <span v-if="houseStore.selectedSummary.prev" :class="currentMomRate >= 0 ? 'stat-up' : 'stat-down'">
               {{ formatPercent(currentMomRate) }}
             </span>
+            <span v-else>—</span>
           </div>
         </el-card>
       </el-col>
@@ -57,7 +58,7 @@
           <div class="stat-label">本月成交面积</div>
           <div class="stat-value">{{ formatArea(houseStore.monthTotal.area) }} <span class="stat-unit">万m²</span></div>
           <div class="stat-sub">
-            上月 {{ formatArea(houseStore.prevMonthTotal.area) }} 万m²
+            上月 {{ formatArea(houseStore.selectedSummary.prev?.totalArea ?? 0) }} 万m²
           </div>
         </el-card>
       </el-col>
@@ -99,6 +100,38 @@
       </el-col>
     </el-row>
 
+    <!-- 季度 & 年度趋势 -->
+    <el-row :gutter="20" style="margin-top: 20px">
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="flex-between">
+              <span><el-icon><TrendCharts /></el-icon> 季度成交趋势</span>
+              <el-radio-group v-model="quarterType" size="small">
+                <el-radio-button value="count">成交套数</el-radio-button>
+                <el-radio-button value="area">成交面积</el-radio-button>
+              </el-radio-group>
+            </div>
+          </template>
+          <div ref="quarterChartRef" style="height: 320px" />
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="flex-between">
+              <span><el-icon><TrendCharts /></el-icon> 年度成交趋势</span>
+              <el-radio-group v-model="yearType" size="small">
+                <el-radio-button value="count">成交套数</el-radio-button>
+                <el-radio-button value="area">成交面积</el-radio-button>
+              </el-radio-group>
+            </div>
+          </template>
+          <div ref="yearChartRef" style="height: 320px" />
+        </el-card>
+      </el-col>
+    </el-row>
+
     <!-- 区域分析 & 占比 -->
     <el-row :gutter="20" style="margin-top: 20px">
       <el-col :span="14">
@@ -131,17 +164,72 @@ import { useHouseStore } from '@/stores/house'
 const houseStore = useHouseStore()
 const importing = ref(false)
 const trendType = ref('count')
+const quarterType = ref('count')
+const yearType = ref('count')
 
 const trendChartRef = ref<HTMLDivElement>()
+const quarterChartRef = ref<HTMLDivElement>()
+const yearChartRef = ref<HTMLDivElement>()
 const rankChartRef = ref<HTMLDivElement>()
 const pieChartRef = ref<HTMLDivElement>()
 
 let trendChart: echarts.ECharts | null = null
+let quarterChart: echarts.ECharts | null = null
+let yearChart: echarts.ECharts | null = null
 let rankChart: echarts.ECharts | null = null
 let pieChart: echarts.ECharts | null = null
 
+// 套数/面积两种口径的纵轴名称
+function yAxisName(metric: string) {
+  return metric === 'count' ? '套数' : '面积(万m²)'
+}
+
+// 套数/面积两种口径的数值列（面积换算为万m²）
+function metricValues(list: Array<{ totalCount: number; totalArea: number }>, metric: string) {
+  return metric === 'count'
+    ? list.map(d => d.totalCount)
+    : list.map(d => Math.round(d.totalArea / 10000 * 100) / 100)
+}
+
+// 趋势折线图通用配置（月度/季度/年度共用）
+function lineOption(labels: string[], values: number[], metric: string) {
+  return {
+    tooltip: {
+      trigger: 'axis',
+      formatter(params: { name: string; value: number; seriesName: string }[]) {
+        const p = params[0]
+        return `${p.name}<br/>${p.seriesName}: ${p.value.toLocaleString()}`
+      }
+    },
+    grid: { left: 50, right: 30, top: 20, bottom: 40 },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { rotate: 45, fontSize: 11 }
+    },
+    yAxis: {
+      type: 'value',
+      name: yAxisName(metric)
+    },
+    series: [{
+      name: metric === 'count' ? '成交套数' : '成交面积',
+      type: 'line',
+      data: values,
+      smooth: true,
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(64,158,255,0.35)' },
+          { offset: 1, color: 'rgba(64,158,255,0.05)' }
+        ])
+      },
+      lineStyle: { color: '#409eff', width: 2 },
+      itemStyle: { color: '#409eff' }
+    }]
+  }
+}
+
 const currentMomRate = computed(() => {
-  const s = houseStore.currentSummary
+  const s = houseStore.selectedSummary.current
   return s ? s.momRate : 0
 })
 
@@ -173,44 +261,35 @@ function initTrendChart() {
   trendChart = echarts.init(trendChartRef.value)
 
   const data = houseStore.monthlyTrend
-  const months = data.map(d => d.yearMonth)
-  const values = trendType.value === 'count'
-    ? data.map(d => d.totalCount)
-    : data.map(d => Math.round(d.totalArea / 10000 * 100) / 100)
+  trendChart.setOption(lineOption(data.map(d => d.yearMonth), metricValues(data, trendType.value), trendType.value))
 
-  trendChart.setOption({
-    tooltip: {
-      trigger: 'axis',
-      formatter(params: { name: string; value: number; seriesName: string }[]) {
-        const p = params[0]
-        return `${p.name}<br/>${p.seriesName}: ${p.value.toLocaleString()}`
-      }
-    },
-    grid: { left: 50, right: 30, top: 20, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: months,
-      axisLabel: { rotate: 45, fontSize: 11 }
-    },
-    yAxis: {
-      type: 'value',
-      name: trendType.value === 'count' ? '套数' : '面积(万m²)'
-    },
-    series: [{
-      name: trendType.value === 'count' ? '成交套数' : '成交面积',
-      type: 'line',
-      data: values,
-      smooth: true,
-      areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(64,158,255,0.35)' },
-          { offset: 1, color: 'rgba(64,158,255,0.05)' }
-        ])
-      },
-      lineStyle: { color: '#409eff', width: 2 },
-      itemStyle: { color: '#409eff' }
-    }]
+  // 点击图表任意位置，按竖线所在的月份联动更新看板和下拉选择
+  const zr = trendChart.getZr()
+  zr.off('click')
+  zr.on('click', (e: { offsetX: number }) => {
+    if (!trendChart) return
+    const months = houseStore.monthList
+    const idx = Math.round(Number(trendChart.convertFromPixel({ xAxisIndex: 0 }, e.offsetX)))
+    if (idx >= 0 && idx < months.length) {
+      houseStore.selectedMonth = months[idx]
+    }
   })
+}
+
+function initQuarterChart() {
+  if (!quarterChartRef.value) return
+  quarterChart = echarts.init(quarterChartRef.value)
+
+  const data = houseStore.quarterlyTrend
+  quarterChart.setOption(lineOption(data.map(d => d.period), metricValues(data, quarterType.value), quarterType.value))
+}
+
+function initYearChart() {
+  if (!yearChartRef.value) return
+  yearChart = echarts.init(yearChartRef.value)
+
+  const data = houseStore.yearlyTrend
+  yearChart.setOption(lineOption(data.map(d => d.period), metricValues(data, yearType.value), yearType.value))
 }
 
 function initRankChart() {
@@ -275,25 +354,55 @@ function initPieChart() {
 
 function resizeCharts() {
   trendChart?.resize()
+  quarterChart?.resize()
+  yearChart?.resize()
   rankChart?.resize()
   pieChart?.resize()
 }
 
 watch(trendType, () => {
-  if (trendChart) {
-    const data = houseStore.monthlyTrend
-    const values = trendType.value === 'count'
-      ? data.map(d => d.totalCount)
-      : data.map(d => Math.round(d.totalArea / 10000 * 100) / 100)
+  nextTick(() => {
+    if (trendChart) {
+      const data = houseStore.monthlyTrend
+      trendChart.setOption({
+        yAxis: { name: yAxisName(trendType.value) },
+        series: [{
+          name: trendType.value === 'count' ? '成交套数' : '成交面积',
+          data: metricValues(data, trendType.value)
+        }]
+      })
+    }
+  })
+})
 
-    trendChart.setOption({
-      yAxis: { name: trendType.value === 'count' ? '套数' : '面积(万m²)' },
-      series: [{
-        name: trendType.value === 'count' ? '成交套数' : '成交面积',
-        data: values
-      }]
-    })
-  }
+watch(quarterType, () => {
+  nextTick(() => {
+    if (quarterChart) {
+      const data = houseStore.quarterlyTrend
+      quarterChart.setOption({
+        yAxis: { name: yAxisName(quarterType.value) },
+        series: [{
+          name: quarterType.value === 'count' ? '成交套数' : '成交面积',
+          data: metricValues(data, quarterType.value)
+        }]
+      })
+    }
+  })
+})
+
+watch(yearType, () => {
+  nextTick(() => {
+    if (yearChart) {
+      const data = houseStore.yearlyTrend
+      yearChart.setOption({
+        yAxis: { name: yAxisName(yearType.value) },
+        series: [{
+          name: yearType.value === 'count' ? '成交套数' : '成交面积',
+          data: metricValues(data, yearType.value)
+        }]
+      })
+    }
+  })
 })
 
 watch(() => houseStore.selectedMonth, () => {
@@ -309,6 +418,18 @@ watch(() => houseStore.monthlyTrend, () => {
   })
 }, { deep: true })
 
+watch(() => houseStore.quarterlyTrend, () => {
+  nextTick(() => {
+    initQuarterChart()
+  })
+}, { deep: true })
+
+watch(() => houseStore.yearlyTrend, () => {
+  nextTick(() => {
+    initYearChart()
+  })
+}, { deep: true })
+
 onMounted(async () => {
   await houseStore.loadFromDb()
   if (!houseStore.selectedMonth && houseStore.monthList.length > 0) {
@@ -316,6 +437,8 @@ onMounted(async () => {
   }
   nextTick(() => {
     initTrendChart()
+    initQuarterChart()
+    initYearChart()
     initRankChart()
     initPieChart()
   })
@@ -325,6 +448,8 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('resize', resizeCharts)
   trendChart?.dispose()
+  quarterChart?.dispose()
+  yearChart?.dispose()
   rankChart?.dispose()
   pieChart?.dispose()
 })
@@ -340,6 +465,8 @@ async function handleImportJson() {
     }
     nextTick(() => {
       initTrendChart()
+      initQuarterChart()
+      initYearChart()
       initRankChart()
       initPieChart()
     })
